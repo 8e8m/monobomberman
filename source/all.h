@@ -13,8 +13,8 @@
 
 typedef struct {
   Font font __attribute__((aligned));
-  i16 horizontal, vertical __attribute__((aligned));
-  f32 ups, fps __attribute__((aligned));
+  u16 horizontal, vertical __attribute__((aligned));
+  u16 ups, fps __attribute__((aligned));
 } game_t;
 
 /* game.c */
