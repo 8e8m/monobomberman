@@ -61,7 +61,7 @@ ifeq (${VECTORIZED},1)
         ifeq (${CC},clang)
                 CFLAGS += -Rpass=loop-vectorize
         else
-                CFLAGS += -fopt-info-vec-all
+                CFLAGS += -fopt-info-vec-optimized
         endif
 endif
 

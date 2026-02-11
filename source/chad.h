@@ -13,6 +13,7 @@
 #include <stdint.h>
 
 #define always_inline static inline __attribute__((always_inline))
+#define aligned __attribute__((aligned))
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
 #define MAX(a,b) ((a)>(b)?(a):(b))

@@ -1,5 +1,9 @@
-MonoBomberMan --- IP-based Multiplayer Bomber Man
+MonoBomberMan
 =================================================
+
+# IP-based Multiplayer Bomber Man
+
+Setup is a trivial as compilation.
 
 ## Game Internals
 We want the traditional experience with simple power-ups and benign enemies.
@@ -10,13 +14,16 @@ Design-wise we'll keep things centralized and assume that this is a unified high
 
 We'll start with the fundamental corpus:
 
+	#define EXPECTED_UPS 30 // shouldn't matter at low values.
+	#define EXPECTED_FPS 60 // or higher
+
     typedef struct {
       tiles_t tiles;     // tiles classifying texturing, accessibility, and lethality.
                          // Any communication between entities is done here.
       players_t players; // Controlled-by-humans.
       bombs_t bombs;     // timed explosives.
       enemies_t enemies; // Simple walk-back-and-forth enemies.
-      
+    
       // Windowing / Game Loop
       Font font;                // the global font
       u16 horizontal, vertical; // highly mutable width & height of the current window
@@ -35,26 +42,26 @@ The naming here is to imply that these substructures clearly imply that they cov
       POWERUP_BOMB,
       POWERUP_POWER,
       POWERUP_SPEED,
-	  // These will probably never be negative:
+      // These will probably never be negative:
       POWERUP_PIERCE,
       POWERUP_KICK,
       POWERUP_THROW,
       POWERUP_BOUNCE,
-	  // Curse is something I've slightly read up on, but it seems to be timer based.
-	  // POWERUP_CURSE, // no plan to implement.
-    }
+      // Curse is something I've slightly read up on, but it seems to be timer based.
+      // POWERUP_CURSE, // no plan to implement.
+    };
     
     typedef struct {
       union {
         u16 _;
         struct {
           u8 texture   : 3; // frames for everything that doesn't move, static assets.
-		  u8 explosive : 1; // explosion animations, coopts texture for explosion frames.
+          u8 explosive : 1; // explosion animations, coopts texture for explosion frames.
           u8 passable  : 1;
           u8 breakable : 1;
           u8 lethal    : 1; // player will die if they occupy this space during the check
           i8 pickup    : 4; // positive / negative pickups
-		  // 5 bits left for extensions.
+          // 5 bits left for extensions.
         };
       } state[TILE_LIMIT];
       u8 color[TILE_LIMIT];
@@ -65,7 +72,8 @@ We will track fundamental interactions here. Powerups are grouped in per their s
     #define PLAYER_LIMIT (1<<2)
     
     typedef struct {
-      f32 x[PLAYER_LIMIT], y[PLAYER_LIMIT]; // for smooth movement, rounding is used for tile checks.
+      // for smooth movement, rounding is used for tile checks.
+      f32 x[PLAYER_LIMIT], y[PLAYER_LIMIT];
       union {
         u32 _;
         struct {
@@ -100,8 +108,8 @@ The framerate being a higher value should result in a visually consistent style.
           // 10 bits left for extensions.
         };
       } state[BOMB_LIMIT];
-	  u16 timer[BOMB_LIMIT]; // updates until explosion.
-	  u8 color[BOMB_LIMIT], color_flash[BOMB_LIMIT];
+      u16 timer[BOMB_LIMIT]; // updates until explosion.
+      u8 color[BOMB_LIMIT], color_flash[BOMB_LIMIT];
     } bombs_t;
 
 Bombs are pretty simple. After they explode they lag behind.
@@ -112,9 +120,9 @@ We can assume frames are interpolated and UPS is low.
     
     enum {
       MOVEMENT_VERTICAL,
-	  MOVEMENT_HORIZONTAL,
-	  MOVEMENT_RANDOM,
-    }
+      MOVEMENT_HORIZONTAL,
+      MOVEMENT_RANDOM,
+    };
     
     typedef struct {
       f32 x[ENEMY_LIMIT], y[ENEMY_LIMIT];
@@ -124,7 +132,18 @@ We can assume frames are interpolated and UPS is low.
 Enemies are primitive. These set the tile they are on as lethal.
 We can assume they have the same base movement speed.
 
-## Networking
+#### Loading
+
+We want to load a bunch of information at the start and it's trivial with or without Raylib.
+
+The important directories/files are:
+assets/(spritesheet).png
+fonts/(fontset)/
+configuration.txt <- omitted for simplicity.
+
+We'll look for the assets for tiles, bombs, explosion frames, & players.
+
+#### Networking
 
 ## Copyright
 [monobomberman](https://github.com/8e8m/monobomberman) by [Anon Anonison](https://github.com/agvxov) & [Emil Williams](https://github.com/8e8m) is marked [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/).

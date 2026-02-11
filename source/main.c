@@ -3,13 +3,10 @@
 int Main(int count, char ** arguments)
 {
   (void)count;
-  _Alignas(64) game_t game[1] = {0};
   char * program_name = arguments[0];
   srand(time(NULL));
   Root(program_name);
-  GameInitialize(game, program_name);
-  GameLoop(game);
-  GameDeinitialize(game);
+  GameStart(program_name);
   return 0;
 }
 
