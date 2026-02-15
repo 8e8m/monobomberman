@@ -21,6 +21,7 @@ void GameStart(config_t config) {
 static void GameRecalculateViewport(game_t * game) {
   game->config.resolution_x = GetScreenWidth();
   game->config.resolution_y = GetScreenHeight();
+
   game->camera = (Camera2D) {
     .offset = (Vector2) { 0 },
     .target = (Vector2) { 0 },
@@ -43,7 +44,7 @@ static void GameInitialize(game_t * game) {
   /* Strict parameters */
 #define DEFAULT(a, b) ((b) ? (b) : (a))
   game->config.resolution_x = MAX(200, DEFAULT(600, game->config.resolution_x));
-  game->config.resolution_y = MAX(200, DEFAULT(600, game->config.resolution_y));
+  game->config.resolution_y = game->config.resolution_x+ FONT_SIZE;
   game->config.fps = MAX(1, DEFAULT(60, game->config.fps));
   game->config.ups = MAX(1, DEFAULT(30, game->config.ups));
   if (!*game->config.font)
@@ -114,9 +115,8 @@ static void GameInitialize(game_t * game) {
   game->bombs.color[1] = GAME_RED | GAME_OPAQUE;
 
   /* :config */
-  game->font = DefaultFont(game->config.font);
+  RaylibInitialize(game);
 
-  RaylibInitialize(game->config.resolution_x, game->config.resolution_y, game->config.window_name, game->font);
   GameRecalculateViewport(game);
 
   game->spritesheet = LoadTexture(game->config.spritesheet);

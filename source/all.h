@@ -37,6 +37,8 @@
     85*((c &  GAME_BLUE)>>4), \
     85*((c &  GAME_OPAQUE)>>6), }
 
+#define FONT_SIZE 20
+
 #define TEXTURE_LIMIT (3*8)
 
 /* Spritesheets will be (128*4x128*6)
@@ -102,8 +104,8 @@ typedef struct {
       i8 pickup    : 4; // positive / negative pickups
       // 5 bits left for extensions.
     };
-  } state[TILE_LENGTH_LIMIT][TILE_LENGTH_LIMIT];
-  u8 color;
+  } state[TILE_LENGTH_LIMIT][TILE_LENGTH_LIMIT] aligned;
+  u8 color aligned;
   Rectangle wall[2] aligned;
   Rectangle explosion[2] aligned;
   Rectangle powerup[8] aligned;
@@ -173,20 +175,23 @@ typedef struct {
   i16 x[ENEMY_LIMIT] aligned;
   i16 y[ENEMY_LIMIT] aligned;
   u8 movement[ENEMY_LIMIT] aligned;
-  Rectangle enemy[4];
+  Rectangle enemy[4] aligned;
 } enemies_t;
 
 #define CONFIG_STRING_LIMIT 128
 typedef struct {
-  u16 resolution_x, resolution_y;
-  u8 fps, ups;
-  char font[CONFIG_STRING_LIMIT];
-  char spritesheet[CONFIG_STRING_LIMIT];
-  char window_name[CONFIG_STRING_LIMIT];
-  u16 spritesheet_scale;
+  u16 resolution_x aligned;
+  u16 resolution_y aligned;
+  u8 fps aligned;
+  u8 ups aligned;
+  char font[CONFIG_STRING_LIMIT] aligned;
+  char spritesheet[CONFIG_STRING_LIMIT] aligned;
+  char window_name[CONFIG_STRING_LIMIT] aligned;
+  u16 spritesheet_scale aligned;
   /* --- */
-  u8 player_count;
-  u8 map_x, map_y;
+  u8 player_count aligned;
+  u8 map_x aligned;
+  u8 map_y aligned;
 } config_t;
 
 typedef struct {
@@ -200,8 +205,8 @@ typedef struct {
 
   Texture spritesheet aligned;
   Camera2D camera aligned;
-
-  u8 client;
+  u16 time_limit aligned;
+  u8 client aligned;
 } game_t;
 
 /* game.c */
@@ -226,7 +231,7 @@ void Render(game_t * game, f64 interpolation);
 
 void GuiLoadStyleDarkSimple(void);
 Font DefaultFont(char * choice);
-void RaylibInitialize(int horizontal, int vertical, char * window_name, Font default_font);
+void RaylibInitialize(game_t * game);
 void RaylibDeinitialize(void);
 
 /* ... */

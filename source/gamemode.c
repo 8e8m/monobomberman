@@ -14,6 +14,7 @@ void MultiPlayer(game_t * game) {
   for (i = 0; i < width; ++i) {
     for (j = 0; j < height; ++j) {
       game->tiles.state[i][j]._ = rand() % 10 ? IMPASSIBLE_BREAKABLE_WALL : PASSIBLE_NOTHING;
+      /* game->tiles.state[i][j]._ |= rand() % 3 ? 0 : POWERUP; */
     }
   }
 
@@ -26,12 +27,15 @@ void MultiPlayer(game_t * game) {
   bzero(game->players.state, sizeof(*game->players.state) * PLAYER_LIMIT);
 
   for (i = 0; i < MIN(PLAYER_LIMIT, game->config.player_count); ++i) {
-    game->players.state[i].bomb_limit = 15;
+    bzero(&game->players.state[i]._, sizeof(game->players.state[i]._));
+    game->players.state[i].bomb_limit = 1;
     game->players.state[i].power = 2;
     game->players.state[i].speed = 2;
     game->players.state[i].alive = 1;
     game->players.state[i].direction = DOWN;
   }
+
+  game->time_limit = game->config.ups * 60 * 3;
 
   float player_x[4] =
     {0, (width-1), (width-1), 0                   };

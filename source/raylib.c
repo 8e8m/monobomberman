@@ -11,7 +11,7 @@
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 
 #define RAYGUI_IMPLEMENTATION
-#include <raygui.h>
+#include "all.h"
 #include <style_dark.h>
 #pragma GCC diagnostic pop
 
@@ -32,12 +32,14 @@ Font DefaultFont(char * choice) {
   return font;
 }
 
-void RaylibInitialize(int horizontal, int vertical, char * window_name, Font default_font) {
+void RaylibInitialize(game_t * game) {
 #ifdef NDEBUG
   SetTraceLogLevel(LOG_NONE);
 #endif
+  i16 horizontal = game->config.resolution_x;
+  i16 vertical = game->config.resolution_y;
   /* SetConfigFlags(FLAG_WINDOW_RESIZABLE); */
-  InitWindow(horizontal, vertical, window_name);
+  InitWindow(horizontal, vertical, game->config.window_name);
   SetWindowState(FLAG_WINDOW_HIDDEN);
   /* we should spawn this in the center of the screen and have our window scale to the limit of the screen */
   InitAudioDevice();
@@ -47,7 +49,8 @@ void RaylibInitialize(int horizontal, int vertical, char * window_name, Font def
     width/2-horizontal/2,
     height/2-vertical/2);
   GuiLoadStyleDarkSimple();
-  GuiSetFont(default_font);
+  game->font = DefaultFont(game->config.font);
+  GuiSetFont(game->font);
 }
 
 void RaylibDeinitialize(void) {

@@ -36,7 +36,8 @@ static void UpdateExplosions(game_t * game) {
   size_t i, j;
   for (i = 0; i < game->config.map_x; ++i) {
     for (j = 0; j < game->config.map_y; ++j) {
-      if (game->tiles.state[i][j]._ >= PASSIBLE_EXPLOSIVE_LETHAL) {
+      if (game->tiles.state[i][j]._ >= PASSIBLE_EXPLOSIVE_LETHAL
+      &&  game->tiles.state[i][j]._ <= PASSIBLE_EXPLOSIVE_LETHAL_END) {
         if (game->tiles.state[i][j]._ == PASSIBLE_EXPLOSIVE_LETHAL_END)
         { game->tiles.state[i][j]._ = PASSIBLE_NOTHING; }
         else
@@ -156,7 +157,9 @@ static void UpdateBomb(game_t * game) {
 		game->tiles.state[rx][ry]._ = PASSIBLE_EXPLOSIVE_LETHAL;
 	      } else if (game->tiles.state[rx][ry]._ == IMPASSIBLE_BREAKABLE_WALL) {
 		game->tiles.state[rx][ry]._ = PASSIBLE_EXPLOSIVE_LETHAL;
-		block[k%4] = 1;
+		if (!game->players.state[i].pierce) {
+		  block[k%4] = 1;
+		}
 	      } else {
 		block[k%4] = 1;
 	      }
