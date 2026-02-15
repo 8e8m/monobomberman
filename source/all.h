@@ -19,8 +19,6 @@
     (void) 0
     /* ...  */
 #define StepStop(prefix)                                                \
-    prefix##s_per_second++;                                             \
-    prefix##_total++;                                                   \
     prefix##_last = timespec_add(prefix##_last, prefix##_interval);     \
     if (timespec_cmp(prefix##_last, now) < 0) {                         \
       prefix##_last = now;                                              \
@@ -178,13 +176,16 @@ typedef struct {
   Rectangle enemy[4];
 } enemies_t;
 
+#define CONFIG_STRING_LIMIT 128
 typedef struct {
   u16 resolution_x, resolution_y;
   u8 fps, ups;
-  char font[128];
-  char spritesheet[128];
+  char font[CONFIG_STRING_LIMIT];
+  char spritesheet[CONFIG_STRING_LIMIT];
+  char window_name[CONFIG_STRING_LIMIT];
   u16 spritesheet_scale;
   /* --- */
+  u8 player_count;
   u8 map_x, map_y;
 } config_t;
 
@@ -205,13 +206,13 @@ typedef struct {
 
 /* game.c */
 
-void GameStart(char * program_name);
+void GameStart(config_t config);
 void GameResize(game_t * game);
+void GameReinitialize(game_t * game);
 
 /* gamemode.c */
 
-void MultiPlayer(game_t * game, u16 width, u16 height, u8 player_count);
-void SinglePlayer(game_t * game, u16 width, u16 height);
+void MultiPlayer(game_t * game);
 
 /* update.c */
 

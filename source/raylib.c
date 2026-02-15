@@ -41,7 +41,11 @@ void RaylibInitialize(int horizontal, int vertical, char * window_name, Font def
   SetWindowState(FLAG_WINDOW_HIDDEN);
   /* we should spawn this in the center of the screen and have our window scale to the limit of the screen */
   InitAudioDevice();
-  SetWindowPosition(0, 0);
+  int monitor = GetCurrentMonitor();
+  int width = GetMonitorWidth(monitor), height = GetMonitorHeight(monitor);
+  SetWindowPosition(
+    width/2-horizontal/2,
+    height/2-vertical/2);
   GuiLoadStyleDarkSimple();
   GuiSetFont(default_font);
 }

@@ -2,9 +2,9 @@
 
 static void CheckKilled(game_t * game);
 static void UpdateExplosions(game_t * game);
-static void PlaceExplosive(game_t * game);
+static void PlaceBomb(game_t * game);
 static int CheckInputDebug(game_t * game);
-static void CheckInputPlaceExplosive(game_t * game);
+static void CheckInputPlaceBomb(game_t * game);
 static void CheckInputMovement(game_t * game);
 static void UpdatePlayer(game_t * game);
 static void UpdateBomb(game_t * game);
@@ -15,7 +15,7 @@ i16 Update(game_t * game, timespec_t now) {
   GameResize(game);
   if (CheckInputDebug(game)) { return 1; }
   CheckInputMovement(game);
-  CheckInputPlaceExplosive(game);
+  CheckInputPlaceBomb(game);
   UpdatePlayer(game);
   UpdateBomb(game);
   CheckKilled(game);
@@ -46,7 +46,7 @@ static void UpdateExplosions(game_t * game) {
   }
 }
 
-static void PlaceExplosive(game_t * game) {
+static void PlaceBomb(game_t * game) {
   auto state = &game->players.state[game->client];
   if (state->bomb_count < state->bomb_limit) {
     game->tiles.state
@@ -57,7 +57,7 @@ static void PlaceExplosive(game_t * game) {
     game->bombs.state[game->client][state->bomb_count].power = state->power;
     game->bombs.state[game->client][state->bomb_count].pierce = state->pierce;
     game->bombs.state[game->client][state->bomb_count].bounce = state->bounce;
-    game->bombs.timer[game->client][state->bomb_count] = game->config.ups * 2;
+    game->bombs.timer[game->client][state->bomb_count] = game->config.ups;
     ++state->bomb_count;
   }
 }
@@ -66,7 +66,8 @@ static int CheckInputDebug(game_t * game) {
   switch (GetKeyPressed()) {
   case KEY_ESCAPE: return 1;
 #ifndef NDEBUG
-  case KEY_R: MultiPlayer(game, game->config.map_x, game->config.map_y, 4); break;
+  case KEY_F1: GameReinitialize(game); break;
+  case KEY_R: MultiPlayer(game); break;
   case KEY_T: if (game->client <  3) game->client++; break;
   case KEY_G: if (game->client != 0) game->client--; break;
 #endif
@@ -74,13 +75,13 @@ static int CheckInputDebug(game_t * game) {
   return 0;
 }
 
-static void CheckInputPlaceExplosive(game_t * game) {
+static void CheckInputPlaceBomb(game_t * game) {
   auto state = &game->players.state[game->client];
   if ((IsKeyPressed(KEY_FIVE) ||  IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_U) || IsKeyPressed(KEY_O)
   ||   IsKeyPressed(KEY_M)    || IsKeyPressed(KEY_PERIOD) || IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_C)
   ||   IsKeyPressed(KEY_Q)    || IsKeyPressed(KEY_E)      || IsKeyPressed(KEY_ENTER))
   && state->alive)
-  { PlaceExplosive(game); }
+  { PlaceBomb(game); }
 }
 
 
@@ -133,31 +134,37 @@ static void UpdatePlayer(game_t * game) {
 }
 
 static void UpdateBomb(game_t * game) {
-  u16 * b = *game->bombs.timer;
+  size_t i, j, k;
   ssize_t
     offset_x[4] = {-1, 1, 0, 0},
     offset_y[4] = { 0, 0, -1, 1};
-  size_t i, j;
-  for (i = 0; i < PLAYER_LIMIT * BOMB_LIMIT; ++i) {
-    if (b[i]) {
-      --b[i];
-      if (!b[i]) {
-        /* game->tiles.state[(*game->bombs.x)[i]][(*game->bombs.y)[i]]._ = PASSIBLE_NOTHING; */
-        /* explosion */
-        for (j = 0; j < 4; ++j) {
-          i16
-            rx = (*game->bombs.x)[i] + offset_x[j],
-            ry = (*game->bombs.y)[i] + offset_y[j];
-
-          if (game->tiles.state[rx][ry]._ & PASSIBLE || game->tiles.state[rx][ry]._ == IMPASSIBLE_BREAKABLE_WALL) {
+  for (i = 0; i < PLAYER_LIMIT; ++i) {
+    for (j = 0; j < BOMB_LIMIT; ++j) {
+      if (game->bombs.timer[i][j]) {
+        --game->bombs.timer[i][j];
+        if (!game->bombs.timer[i][j]) {
+	  ssize_t block[4] = {0};
+          for (k = 0; k < 4 * game->players.state[i].power; ++k) {
+	    if (block[k%4]) { continue; }
+            i16
+              rx = game->bombs.x[i][j] + offset_x[k%4] * ((k / 4) + 1),
+              ry = game->bombs.y[i][j] + offset_y[k%4] * ((k / 4) + 1);
             if (rx < game->config.map_x && rx >= 0
-            &&  ry < game->config.map_y && ry >= 0)
-            { game->tiles.state[rx][ry]._ = PASSIBLE_EXPLOSIVE_LETHAL; }
+	    &&  ry < game->config.map_y && ry >= 0)
+            {
+	      if (game->tiles.state[rx][ry]._ & PASSIBLE) {
+		game->tiles.state[rx][ry]._ = PASSIBLE_EXPLOSIVE_LETHAL;
+	      } else if (game->tiles.state[rx][ry]._ == IMPASSIBLE_BREAKABLE_WALL) {
+		game->tiles.state[rx][ry]._ = PASSIBLE_EXPLOSIVE_LETHAL;
+		block[k%4] = 1;
+	      } else {
+		block[k%4] = 1;
+	      }
+	    }
           }
+          game->tiles.state[game->bombs.x[i][j]][game->bombs.y[i][j]]._ = PASSIBLE_EXPLOSIVE_LETHAL;
+          --game->players.state[i].bomb_count;
         }
-        game->tiles.state[*game->bombs.x[i]][*game->bombs.y[i]]._ = PASSIBLE_EXPLOSIVE_LETHAL;
-        /* --- */
-        --game->players.state[i>>2].bomb_count;
       }
     }
   }
