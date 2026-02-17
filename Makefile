@@ -108,7 +108,7 @@ clean:
 	rm -f ${OBJECT.dir}/*.o ${OBJECT.dir}/*.pch ${OBJECT.dir}/*.gch ${OBJECT.dir}/*.d ${LIBRARY.dir}/*.a ${INCLUDE.dir}/*.h ${OBJECT.dir}/*.h ${TARGET}
 	rm -f /tmp/raygui.tgz /tmp/raylib.tgz
 
-${TARGET}: ${LIBRARY.dir}/libraylib.amd64.a ${OBJECT}
+${TARGET}: ${OBJECT} ${LIBRARY.dir}/libraylib.amd64.a
 	@echo "LD	$@"
 	@${LINK.c} -o "$@" $+ ${LDFLAGS}
 
