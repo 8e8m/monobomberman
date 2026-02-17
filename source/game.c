@@ -1,14 +1,7 @@
 #include "all.h"
 
-static void GameInitialize(game_t * game);
-static void GameDeinitialize(game_t * game);
 static void GameLoop(game_t * game);
 static void GameReport(game_t * game, f32 fps, f32 ups, u32 total_fps, u32 total_ups);
-
-void GameReinitialize(game_t * game) {
-  GameDeinitialize(game);
-  GameInitialize(game);
-}
 
 void GameStart(config_t config) {
   _Alignas(64) game_t game[1] = {0};
@@ -40,7 +33,7 @@ void GameResize(game_t * game) {
   }
 }
 
-static void GameInitialize(game_t * game) {
+void GameInitialize(game_t * game) {
   /* Strict parameters */
 #define DEFAULT(a, b) ((b) ? (b) : (a))
   game->config.resolution_x = MAX(200, DEFAULT(600, game->config.resolution_x));
@@ -59,58 +52,47 @@ static void GameInitialize(game_t * game) {
   { strlcpy(game->config.window_name, "Unset Window Name, lol lmao", CONFIG_STRING_LIMIT); }
 #undef DEFAULT
 
+
   {
     int t = game->config.spritesheet_scale;
-    /* better, but not really good, it's FINE */
-    Rectangle wall[2] = // group 0
-      {(Rectangle){    0,  0, t, t},
-       (Rectangle){t - 1,  0, t, t}};
-
-    Rectangle explosion[2] = // group 1
-      {(Rectangle){t * 2 - 1,  0, t, t},
-       (Rectangle){t * 3 - 1,  0, t, t}};
-
-    Rectangle powerup[8] = // group 2
-      {(Rectangle){        0,  t, t, t},
+    Rectangle atlas[4*6] =
+      /* walls : group 0 */
+      {(Rectangle){    0,  0, t, t}, /* unbreakable */
+       (Rectangle){t - 1,  0, t, t}, /* breakable */
+    /* explosions : group 1 */
+       (Rectangle){t * 2 - 1,  0, t, t},
+       (Rectangle){t * 3 - 1,  0, t, t},
+    /* powerup : group 2 */
+       (Rectangle){        0,  t, t, t},
        (Rectangle){t     - 1,  t, t, t},
        (Rectangle){t * 2 - 1,  t, t, t},
        (Rectangle){t * 3 - 1,  t, t, t},
        (Rectangle){        0,  t * 2, t, t},
        (Rectangle){t     - 1,  t * 2, t, t},
        (Rectangle){t * 2 - 1,  t * 2, t, t},
-       (Rectangle){t * 3 - 1,  t * 2, t, t}};
-
-    Rectangle player[4] = // group 3
-      {(Rectangle){        0,  t * 3, t, t},
+       (Rectangle){t * 3 - 1,  t * 2, t, t},
+    /* player : group 3 */
+       (Rectangle){        0,  t * 3, t, t},
        (Rectangle){t     - 1,  t * 3, t, t},
        (Rectangle){t * 2 - 1,  t * 3, t, t},
-       (Rectangle){t * 3 - 1,  t * 3, t, t}};
-
-    Rectangle bomb[4] = // group 4
-      {(Rectangle){        0,  t * 4, t, t},
+       (Rectangle){t * 3 - 1,  t * 3, t, t},
+    /* bomb : group 4 */
+       (Rectangle){        0,  t * 4, t, t},
        (Rectangle){t     - 1,  t * 4, t, t},
        (Rectangle){t * 2 - 1,  t * 4, t, t},
-       (Rectangle){t * 3 - 1,  t * 4, t, t}};
-
-    Rectangle enemy[4] = // group 5
-      {(Rectangle){        0,  t * 5, t, t},
+       (Rectangle){t * 3 - 1,  t * 4, t, t},
+    /* enemy : group 5 */
+       (Rectangle){        0,  t * 5, t, t},
        (Rectangle){t     - 1,  t * 5, t, t},
        (Rectangle){t * 2 - 1,  t * 5, t, t},
        (Rectangle){t * 3 - 1,  t * 5, t, t}};
 
-    memcpy(game->tiles.wall, wall, sizeof(wall));
-    memcpy(game->tiles.explosion, explosion, sizeof(explosion));
-    memcpy(game->tiles.powerup, powerup, sizeof(powerup));
-    memcpy(game->players.player, player, sizeof(player));
-    memcpy(game->bombs.bomb, bomb, sizeof(bomb));
-    memcpy(game->enemies.enemy, enemy, sizeof(enemy));
+    memcpy(game->atlas, atlas, sizeof(atlas));
   }
 
   MultiPlayer(game);
 
-  game->tiles.color = (rand() % 4) | ((rand() % 4) << 2) | ((rand() % 4) << 4) | GAME_OPAQUE;
-  if (game->tiles.color == GAME_OPAQUE) { game->tiles.color |= GAME_WHITE; }
-
+  game->tiles.color = (rand() % 2 + 2) | ((rand() % 2 + 2) << 2) | ((rand() % 2 + 2) << 4) | GAME_OPAQUE;
   game->bombs.color[0] = GAME_WHITE | GAME_OPAQUE;
   game->bombs.color[1] = GAME_RED | GAME_OPAQUE;
 
@@ -125,7 +107,7 @@ static void GameInitialize(game_t * game) {
   ClearWindowState(FLAG_WINDOW_HIDDEN);
 }
 
-static void GameDeinitialize(game_t * game) {
+void GameDeinitialize(game_t * game) {
   UnloadTexture(game->spritesheet);
   if (GetFontDefault().texture.id != game->font.texture.id) { UnloadFont(game->font); }
   RaylibDeinitialize();
@@ -186,10 +168,10 @@ static void GameLoop(game_t * game) {
 
     StepStart(print);
     GameReport(game,
-	   round(frames_per_second / TIMESPEC_TO_F64(print_delta)),
-	   round(updates_per_second / TIMESPEC_TO_F64(print_delta)),
-	   frame_total,
-	   update_total);
+           round(frames_per_second / TIMESPEC_TO_F64(print_delta)),
+           round(updates_per_second / TIMESPEC_TO_F64(print_delta)),
+           frame_total,
+           update_total);
     frames_per_second = updates_per_second = 0;
     StepStop(print);
 
@@ -204,3 +186,4 @@ static void GameReport(game_t * game, f32 fps, f32 ups, u32 total_fps, u32 total
          fps, ups, total_fps, total_ups);
 #endif
 }
+

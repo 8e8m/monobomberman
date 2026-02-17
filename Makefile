@@ -1,11 +1,16 @@
 #!/usr/bin/make -f
+GPERF = gperf
+
+PERF.orig := $(wildcard ${SOURCE.dir}/*.gperf)
+PERF := $(PERF:${SOURCE.dir}/%=%)
+PERF.h := $(addprefix ${OBJECT.dir}/,$(PERF:.gperf=.h))
 
 SOURCE.dir      := source
 OBJECT.dir      := object
 INCLUDE.dir     := include
 LIBRARY.dir     := library
 LIBRARY         := $(addprefix ${LIBRARY.dir}/, libraylib.amd64.a)
-HEADER          := $(wildcard ${SOURCE.dir}/*.h) $(wildcard ${INCLUDE.dir}/*.h) include/raygui.h include/raylib.h
+HEADER          := $(wildcard ${SOURCE.dir}/*.h) $(wildcard ${INCLUDE.dir}/*.h) include/raygui.h include/raylib.h ${PERF.h}
 HEADER.orig     := $(HEADER:${SOURCE.dir}/%=%)
 HEADER.orig     := $(HEADER.orig:${INCLUDE.dir}/%=%)
 HEADER.pch      := $(filter-out ${OBJECT.dir}/style_dark.h,$(addprefix ${OBJECT.dir}/, ${HEADER.orig:.c=}))
@@ -18,7 +23,7 @@ DEPEND          := $(wildcard ${OBJECT.dir}/*.d)
 TARGET := $(shell basename $$PWD)
 
 CFLAGS   := -std=c23 -pthread -MMD -MP
-CPPFLAGS := -Iinclude -D_GNU_SOURCE -I ${OBJECT.dir}
+CPPFLAGS := -I${INCLUDE.dir} -I${OBJECT.dir} -D_GNU_SOURCE -I ${OBJECT.dir}
 LDFLAGS  := -lm -lbsd
 
 ifneq ($(shell which mold 2> /dev/null),)
@@ -75,10 +80,14 @@ endif
 
 vpath %.c ${SOURCE.dir}
 vpath %.h ${SOURCE.dir} ${INCLUDE.dir}
+vpath %.gperf ${SOURCE.dir}
 
 ${OBJECT.dir}/%.o: %.c
 	@echo "CC	$<"
 	@${COMPILE.c} -o $@ $<
+
+${OBJECT.dir}/%.h: %.gperf
+	${GPERF} --null-strings -tEIH $(shell basename $(basename $<))_hash -N $(shell basename $(basename $<))_lookup < $< > $@
 
 # The tree builds incorrectly if these two are merged
 # at the target level at a bare build.
@@ -91,12 +100,12 @@ ${OBJECT.dir}/%.h.pch: %.h
 	@${COMPILE.c} ${PCHFLAGS} -x c-header -o $@ $<
 
 .PHONY: all clean
-all: include/raylib.h include/raygui.h .WAIT ${HEADER.pch} ${TARGET}
+all: include/raylib.h include/raygui.h object/options.h .WAIT ${HEADER.pch} ${TARGET}
 
 ${HEADER.pch}: ${LIBRARY.dir}/libraylib.amd64.a include/raygui.h include/style_dark.h
 
 clean:
-	rm -f ${OBJECT.dir}/*.o ${OBJECT.dir}/*.pch ${OBJECT.dir}/*.gch ${OBJECT.dir}/*.d ${LIBRARY.dir}/*.a ${INCLUDE.dir}/*.h ${TARGET}
+	rm -f ${OBJECT.dir}/*.o ${OBJECT.dir}/*.pch ${OBJECT.dir}/*.gch ${OBJECT.dir}/*.d ${LIBRARY.dir}/*.a ${INCLUDE.dir}/*.h ${OBJECT.dir}/*.h ${TARGET}
 	rm -f /tmp/raygui.tgz /tmp/raylib.tgz
 
 ${TARGET}: ${LIBRARY.dir}/libraylib.amd64.a ${OBJECT}

@@ -11,11 +11,7 @@ void Render(game_t * game, f64 interpolation) {
 
   BeginDrawing();
 
-#ifndef NDEBUG
-  ClearBackground(BLACK);
-#else
   ClearBackground(COLOR_TO_RAYLIB(game->tiles.color));
-#endif
   BeginMode2D(game->camera);
   RenderTiles(game);
   RenderBombs(game);
@@ -27,30 +23,26 @@ void Render(game_t * game, f64 interpolation) {
   SwapScreenBuffer();
 }
 
+always_inline void AtlasDraw(game_t * game, u16 atlas_number, u8 color, int i, int j) {
+  DrawTextureRec(
+    game->spritesheet,
+    game->atlas[atlas_number],
+    (Vector2) {i*game->config.spritesheet_scale, j*game->config.spritesheet_scale},
+    COLOR_TO_RAYLIB(color));
+}
+
 void RenderTiles(game_t * game) {
   for (int i = 0; i < game->config.map_x; ++i) {
     for (int j = 0; j < game->config.map_y; ++j) {
-      #ifndef NDEBUG
-      if ((game->tiles.state[i][j]._ | 1) & PASSIBLE || game->tiles.state[i][j]._ == IMPASSIBLE_NOTHING) {
-        DrawRectangleRec((Rectangle) {i*game->config.spritesheet_scale, j*game->config.spritesheet_scale, game->config.spritesheet_scale, game->config.spritesheet_scale}, COLOR_TO_RAYLIB(game->tiles.color));
+      tile_data_t * tile = &game->tiles.state[i][j];
+      if (!tile->passable) {
+	if (tile->texture)
+	{ AtlasDraw(game, tile->breakable ? 1 : 0, game->tiles.color, i, j); }
+      } else if (tile->pickup) {
+	AtlasDraw(game, RENDER_POWERUP_BOMB + tile->pickup - 1, GAME_WHITE | GAME_OPAQUE, i, j);
       }
-      #endif
-
-      if (game->tiles.state[i][j]._ < 2) {
-        DrawTextureRec(
-          game->spritesheet,
-          game->tiles.wall[game->tiles.state[i][j].texture],
-          (Vector2) {i*game->config.spritesheet_scale, j*game->config.spritesheet_scale},
-          COLOR_TO_RAYLIB(game->tiles.color));
-      }
-
-      /* This almost requires horrible no good melding. Almost. */
-      if (game->tiles.state[i][j]._ & EXPLOSIVE) {
-        DrawTextureRec(
-          game->spritesheet,
-          game->tiles.explosion[game->tiles.state[i][j].texture],
-          (Vector2) {i*game->config.spritesheet_scale, j*game->config.spritesheet_scale},
-          WHITE);
+      if (tile->explosive) {
+	AtlasDraw(game, RENDER_EXPLOSION_START + tile->texture, game->bombs.color[0], i, j);
       }
     }
   }
@@ -59,11 +51,8 @@ void RenderTiles(game_t * game) {
 void RenderPlayers(game_t * game) {
   for (int i = 0; i < PLAYER_LIMIT; ++i) {
     if (game->players.state[i].alive) {
-      DrawTextureRec(
-          game->spritesheet,
-          game->players.player[game->players.state[i].direction],
-          (Vector2) {game->players.x[i] * game->config.spritesheet_scale, game->players.y[i] * game->config.spritesheet_scale},
-          COLOR_TO_RAYLIB(game->players.color[i]));
+      AtlasDraw(game, RENDER_PLAYER_RIGHT + game->players.state[i].direction,
+		game->players.color[i], game->players.x[i], game->players.y[i]);
     }
   }
 }
@@ -72,11 +61,9 @@ void RenderBombs(game_t * game) {
   for (int i = 0; i < PLAYER_LIMIT; ++i) {
     for (int j = 0; j < PLAYER_LIMIT; ++j) {
       if (game->bombs.timer[i][j]) {
-        DrawTextureRec(
-          game->spritesheet,
-          game->bombs.bomb[game->bombs.timer[i][j] % 4],
-          (Vector2) {game->bombs.x[i][j]*game->config.spritesheet_scale, game->bombs.y[i][j]*game->config.spritesheet_scale},
-          COLOR_TO_RAYLIB(game->bombs.color[game->bombs.timer[i][j]%2]));
+	AtlasDraw(game, RENDER_BOMB_0 + game->bombs.timer[i][j] % 4,
+		  game->bombs.color[game->bombs.timer[i][j]%2],
+		  game->bombs.x[i][j], game->bombs.y[i][j]);
       }
     }
   }

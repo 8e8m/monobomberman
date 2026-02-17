@@ -41,7 +41,7 @@
 
 #define TEXTURE_LIMIT (3*8)
 
-/* Spritesheets will be (128*4x128*6)
+/* Spritesheets will be (N*4xN*6)
    group 0 is   [0-1][0  ]     / un/breakable walls
    group 1 (just explosions, the nulls are skipped for sake of compactness)
            is   [2-3][0  ]    |
@@ -50,65 +50,74 @@
    group 3 is   [0-3][3  ]   / player
    group 4 is   [0-3][4  ]  / bomb
    group 5 is   [0-3][4  ] / enemy
-
  */
-
-enum {
-  /* each group is for its own group of textures,
-     with at most 8 textures being possible within a functional group.
-     we assume LSB per x86-64 ABI,
-     this would need to be redefined / bit field part removed */
-  EXPLOSIVE                     = (1 << 3),
-  PASSIBLE                      = (1 << 4),
-  BREAKABLE                     = (1 << 5),
-  LETHAL                        = (1 << 6),
-  POWERUP                       = (1 << 7),
-  /* lethality / breakable / explosive are not specially grouped. */
-
-  /* group 0 "impassible" set */
-  IMPASSIBLE_WALL               = 0,
-  IMPASSIBLE_BREAKABLE_WALL     = 1,
-  IMPASSIBLE_NOTHING            = 2,
-
-  /* group 1 "passible" set */
-  PASSIBLE_NOTHING              = PASSIBLE | 0,
-  PASSIBLE_NOTHING_LETHAL       = PASSIBLE | LETHAL | 1,
-  PASSIBLE_EXPLOSIVE_LETHAL     = PASSIBLE | LETHAL | EXPLOSIVE | 0,
-  PASSIBLE_EXPLOSIVE_LETHAL_END = PASSIBLE | LETHAL | EXPLOSIVE | 1,
-
-  /* group 2 "pickup" set */
-  POWERUP_BOMB                  = PASSIBLE | POWERUP | 0,
-  POWERUP_POWER                 = PASSIBLE | POWERUP | 1,
-  POWERUP_SPEED                 = PASSIBLE | POWERUP | 2,
-  // These will probably never be negative:
-  POWERUP_PIERCE                = PASSIBLE | POWERUP | 3,
-  POWERUP_KICK                  = PASSIBLE | POWERUP | 4,
-  POWERUP_THROW                 = PASSIBLE | POWERUP | 5,
-  POWERUP_BOUNCE                = PASSIBLE | POWERUP | 6,
-
-  /* group 3 and higher is not directly classified by the tile system */
-
-};
 
 #define TILE_LENGTH_LIMIT 21
 
+enum powerup {
+  POWERUP_BOMB = 1,
+  POWERUP_POWER,
+  POWERUP_SPEED,
+  POWERUP_PIERCE,
+  POWERUP_KICK,
+  POWERUP_THROW,
+  POWERUP_BOUNCE,
+  POWERUP_CURSE,
+};
+
+/* highly dependent on atlas definition in game.c */
+enum atlas {
+  RENDER_UNBREAKABLE = 0,
+  RENDER_BREAKABLE,
+
+  RENDER_EXPLOSION_START,
+  RENDER_EXPLOSION_END,
+
+  RENDER_POWERUP_BOMB,
+  RENDER_POWERUP_POWER,
+  RENDER_POWERUP_SPEED,
+  RENDER_POWERUP_PIERCE,
+  RENDER_POWERUP_KICK,
+  RENDER_POWERUP_THROW,
+  RENDER_POWERUP_BOUNCE,
+  RENDER_POWERUP_CURSE,
+
+  RENDER_PLAYER_RIGHT,
+  RENDER_PLAYER_LEFT,
+  RENDER_PLAYER_UP,
+  RENDER_PLAYER_DOWN,
+
+  RENDER_BOMB_0,
+  RENDER_BOMB_1,
+  RENDER_BOMB_2,
+  RENDER_BOMB_3,
+
+  RENDER_ENEMY_RIGHT,
+  RENDER_ENEMY_LEFT,
+  RENDER_ENEMY_UP,
+  RENDER_ENEMY_DOWN,
+};
+
 typedef struct {
-  union {
-    u16 _;
-    struct {
-      u8 texture   : 3; // frames for everything that doesn't move, static assets.
-      u8 explosive : 1; // explosion animations, coopts texture for explosion frames.
-      u8 passable  : 1; // important subgroup.
-      u8 breakable : 1;
-      u8 lethal    : 1; // player will die if they occupy this space during the check
-      i8 pickup    : 4; // positive / negative pickups
-      // 5 bits left for extensions.
-    };
-  } state[TILE_LENGTH_LIMIT][TILE_LENGTH_LIMIT] aligned;
+  u8 texture   : 1; // frames for everything that doesn't move, static assets.
+  u8 explosive : 1; // explosion animations, coopts texture for explosion frames.
+  u8 passable  : 1; // important subgroup.
+  u8 breakable : 1;
+  u8 lethal    : 1; // player will die if they occupy this space during the check
+  i8 pickup    : 4; // positive / negative pickups
+  // 3 bits left for extensions.
+} tile_data_t;
+
+static const tile_data_t impassable_tile = (tile_data_t) {.passable = 0};
+static const tile_data_t impassable_wall = (tile_data_t) {.passable = 0, .texture = 1};
+static const tile_data_t breakable_wall = (tile_data_t) {.passable = 0, .texture = 1, .breakable = 1};
+static const tile_data_t passable_tile = (tile_data_t) {.passable = 1};
+static const tile_data_t explosive_tile = (tile_data_t) {.passable = 1, .explosive = 1, .lethal = 1, .texture = 0};
+
+
+typedef struct {
+  tile_data_t state[TILE_LENGTH_LIMIT][TILE_LENGTH_LIMIT] aligned;
   u8 color aligned;
-  Rectangle wall[2] aligned;
-  Rectangle explosion[2] aligned;
-  Rectangle powerup[8] aligned;
 } tiles_t;
 
 #define PLAYER_LIMIT (1<<2)
@@ -116,66 +125,59 @@ typedef struct {
 enum {
   RIGHT, LEFT, UP, DOWN
 };
-    
+
+typedef struct {
+  u8 bomb_limit : 4;
+  u8 bomb_count : 4;
+  u8 power  : 4; // < MAX(TILE_WIDTH, TILE_HEIGHT)
+  u8 speed  : 4; // travels n units per second
+  u8 pierce : 1;
+  u8 kick   : 1; // no intent to implement
+  u8 throw  : 1; // no intent to implement
+  u8 bounce : 1; // no intent to implement
+  u8 alive  : 1;
+  u8 direction : 2; // right left up down
+  u8 moving : 1;
+  // 10 bits left for extensions.
+} player_data_t;
+
 typedef struct {
   i16 x[PLAYER_LIMIT] aligned;
   i16 y[PLAYER_LIMIT] aligned;
-  f32 animation_x[PLAYER_LIMIT] aligned;
-  f32 animation_y[PLAYER_LIMIT] aligned;
-  union {
-    u32 _;
-    struct {
-      u8 bomb_limit : 4;
-      u8 bomb_count : 4;
-      u8 power  : 4; // < MAX(TILE_WIDTH, TILE_HEIGHT)
-      u8 speed  : 4; // travels n units per second
-      u8 pierce : 1;
-      u8 kick   : 1;
-      u8 throw  : 1; // no intent to implement
-      u8 bounce : 1;
-      u8 alive  : 1;
-      u8 direction : 2; // right left up down
-      u8 moving : 1;
-      // 10 bits left for extensions.
-    };
-  } state[PLAYER_LIMIT] aligned;
+  player_data_t state[PLAYER_LIMIT] aligned;
   u8 color[PLAYER_LIMIT] aligned;
-  Rectangle player[4] aligned;
 } players_t;
 
 #define BOMB_LIMIT (1<<4)
-    
+
+typedef struct {
+      u8 power  : 4; // < MAX(TILE_WIDTH, TILE_HEIGHT)
+      u8 pierce : 1;
+      u8 bounce : 1; // no intent to implement
+      // 10 bits left for extensions.
+} bomb_data_t;
+
 typedef struct {
   i16 x[PLAYER_LIMIT][BOMB_LIMIT] aligned;
   i16 y[PLAYER_LIMIT][BOMB_LIMIT] aligned;
-  union {
-    u16 _;
-    struct {
-      u8 power  : 4; // < MAX(TILE_WIDTH, TILE_HEIGHT)
-      u8 pierce : 1;
-      u8 bounce : 1;
-      // 10 bits left for extensions.
-    };
-  } state[PLAYER_LIMIT][BOMB_LIMIT] aligned;
+  bomb_data_t state[PLAYER_LIMIT][BOMB_LIMIT] aligned;
   u16 timer[PLAYER_LIMIT][BOMB_LIMIT] aligned; // updates until explosion.
   u8 color[2] aligned;
-  Rectangle bomb[4] aligned;
 } bombs_t;
 
 #define ENEMY_LIMIT (1<<4)
-    
+
 enum {
   MOVEMENT_VERTICAL,
   MOVEMENT_HORIZONTAL,
   MOVEMENT_RANDOM,
   MOVEMENT_LAST,
 };
-    
+
 typedef struct {
   i16 x[ENEMY_LIMIT] aligned;
   i16 y[ENEMY_LIMIT] aligned;
   u8 movement[ENEMY_LIMIT] aligned;
-  Rectangle enemy[4] aligned;
 } enemies_t;
 
 #define CONFIG_STRING_LIMIT 128
@@ -200,20 +202,21 @@ typedef struct {
   bombs_t bombs aligned;
   enemies_t enemies aligned;
   config_t config aligned;
-
-  Font font aligned;
-
-  Texture spritesheet aligned;
-  Camera2D camera aligned;
   u16 time_limit aligned;
   u8 client aligned;
+
+  Font font aligned;
+  Rectangle atlas[4*6] aligned;
+  Texture spritesheet aligned;
+  Camera2D camera aligned;
 } game_t;
 
 /* game.c */
 
+void GameInitialize(game_t * game);
+void GameDeinitialize(game_t * game);
 void GameStart(config_t config);
 void GameResize(game_t * game);
-void GameReinitialize(game_t * game);
 
 /* gamemode.c */
 

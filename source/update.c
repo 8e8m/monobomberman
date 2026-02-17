@@ -6,8 +6,11 @@ static void PlaceBomb(game_t * game);
 static int CheckInputDebug(game_t * game);
 static void CheckInputPlaceBomb(game_t * game);
 static void CheckInputMovement(game_t * game);
-static void UpdatePlayer(game_t * game);
+static void UpdateClientPlayer(game_t * game);
+static void UpdatePlayers(game_t * game);
 static void UpdateBomb(game_t * game);
+static void UpdateTimeLimit(game_t * game);
+static void CheckWin(game_t * game);
 
 i16 Update(game_t * game, timespec_t now) {
   (void) now;
@@ -16,11 +19,14 @@ i16 Update(game_t * game, timespec_t now) {
   if (CheckInputDebug(game)) { return 1; }
   CheckInputMovement(game);
   CheckInputPlaceBomb(game);
-  UpdatePlayer(game);
+  UpdateClientPlayer(game);
+  UpdatePlayers(game);
   UpdateBomb(game);
   CheckKilled(game);
   UpdateExplosions(game);
-  return 0;
+  CheckWin(game);
+  UpdateTimeLimit(game);
+return 0;
 }
 
 static void CheckKilled(game_t * game) {
@@ -31,28 +37,40 @@ static void CheckKilled(game_t * game) {
   }
 }
 
-
 static void UpdateExplosions(game_t * game) {
   size_t i, j;
   for (i = 0; i < game->config.map_x; ++i) {
     for (j = 0; j < game->config.map_y; ++j) {
-      if (game->tiles.state[i][j]._ >= PASSIBLE_EXPLOSIVE_LETHAL
-      &&  game->tiles.state[i][j]._ <= PASSIBLE_EXPLOSIVE_LETHAL_END) {
-        if (game->tiles.state[i][j]._ == PASSIBLE_EXPLOSIVE_LETHAL_END)
-        { game->tiles.state[i][j]._ = PASSIBLE_NOTHING; }
+      #define EXPLOSIVE_START 0
+      #define EXPLOSIVE_END 1
+      tile_data_t * tile = &game->tiles.state[i][j];
+      if (tile->explosive
+      &&  tile->texture >= EXPLOSIVE_START
+      &&  tile->texture <= EXPLOSIVE_END) {
+        if (tile->texture == EXPLOSIVE_END)
+        {
+          tile->texture = 0;
+          tile->explosive = 0;
+          tile->passable = 1;
+          tile->lethal = 0;
+          if (!tile->breakable) {
+            tile->pickup = 0;
+          }
+          tile->breakable = 0;
+        }
         else
-        { ++game->tiles.state[i][j]._; }
+        { ++tile->texture; }
       }
     }
   }
 }
 
 static void PlaceBomb(game_t * game) {
-  auto state = &game->players.state[game->client];
+  player_data_t * state = &game->players.state[game->client];
   if (state->bomb_count < state->bomb_limit) {
     game->tiles.state
       [game->players.x[game->client]]
-      [game->players.y[game->client]]._ = IMPASSIBLE_NOTHING;
+      [game->players.y[game->client]] = impassable_tile;
     game->bombs.x[game->client][state->bomb_count] = game->players.x[game->client];
     game->bombs.y[game->client][state->bomb_count] = game->players.y[game->client];
     game->bombs.state[game->client][state->bomb_count].power = state->power;
@@ -67,7 +85,7 @@ static int CheckInputDebug(game_t * game) {
   switch (GetKeyPressed()) {
   case KEY_ESCAPE: return 1;
 #ifndef NDEBUG
-  case KEY_F1: GameReinitialize(game); break;
+  case KEY_F1: GameDeinitialize(game); GameInitialize(game); break;
   case KEY_R: MultiPlayer(game); break;
   case KEY_T: if (game->client <  3) game->client++; break;
   case KEY_G: if (game->client != 0) game->client--; break;
@@ -77,7 +95,7 @@ static int CheckInputDebug(game_t * game) {
 }
 
 static void CheckInputPlaceBomb(game_t * game) {
-  auto state = &game->players.state[game->client];
+  player_data_t * state = &game->players.state[game->client];
   if ((IsKeyPressed(KEY_FIVE) ||  IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_U) || IsKeyPressed(KEY_O)
   ||   IsKeyPressed(KEY_M)    || IsKeyPressed(KEY_PERIOD) || IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_C)
   ||   IsKeyPressed(KEY_Q)    || IsKeyPressed(KEY_E)      || IsKeyPressed(KEY_ENTER))
@@ -87,7 +105,7 @@ static void CheckInputPlaceBomb(game_t * game) {
 
 
 static void CheckInputMovement(game_t * game) {
-  auto state = &game->players.state[game->client];
+  player_data_t * state = &game->players.state[game->client];
 
   state->moving = 0;
   if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_EIGHT) || IsKeyPressed(KEY_I) || IsKeyPressed(KEY_W))
@@ -112,63 +130,97 @@ static void CheckInputMovement(game_t * game) {
   /* { state->moving = 0; } */
 }
 
-static void UpdatePlayer(game_t * game) {
-  auto state = &game->players.state[game->client];
+
+static void UpdatePlayers(game_t * game) {
+  for (int i = 0; i < game->config.player_count; ++i) {
+    player_data_t * state = &game->players.state[i];
+    i16 * player_x = &game->players.x[i];
+    i16 * player_y = &game->players.y[i];
+    if (game->tiles.state[*player_x][*player_y].pickup) {
+      switch (game->tiles.state[*player_x][*player_y].pickup) {
+      case POWERUP_BOMB: if (state->bomb_limit < 3) { ++state->bomb_limit; } break;
+      case POWERUP_POWER: if (state->power < 15) { ++state->power; } break;
+      case POWERUP_PIERCE: state->pierce = 1; break;
+      }
+      game->tiles.state[*player_x][*player_y].pickup = 0;
+    }
+  }
+}
+
+static void UpdateClientPlayer(game_t * game) {
+  player_data_t * state = &game->players.state[game->client];
   i16 * player_x = &game->players.x[game->client];
   i16 * player_y = &game->players.y[game->client];
-  /* f32 * animation_x = &game->players.animation_x[game->client]; */
-  /* f32 * animation_y = &game->players.animation_y[game->client]; */
   float direction_x = -(state->direction == LEFT) + (state->direction == RIGHT);
   float direction_y = -(state->direction == UP) + (state->direction == DOWN);
 
   i16 delta_x = direction_x * state->moving;
   i16 delta_y = direction_y * state->moving;
 
-  if (*player_x + delta_x >= 0
-        &&  *player_x + delta_x < game->config.map_x
-        &&  game->tiles.state[*player_x + delta_x][*player_y]._ & PASSIBLE)
+  if (delta_x
+  &&  *player_x + delta_x >= 0
+  &&  *player_x + delta_x < game->config.map_x
+  &&   game->tiles.state[*player_x + delta_x][*player_y].passable)
   { *player_x += delta_x; }
+
   if (*player_y + delta_y >= 0
-        && *player_y + delta_y < game->config.map_y
-        &&  game->tiles.state[*player_x][*player_y + delta_y]._ & PASSIBLE)
+  &&  *player_y + delta_y < game->config.map_y
+  &&   game->tiles.state[*player_x][*player_y + delta_y].passable)
   { *player_y += delta_y; }
 }
 
 static void UpdateBomb(game_t * game) {
-  size_t i, j, k;
   ssize_t
     offset_x[4] = {-1, 1, 0, 0},
     offset_y[4] = { 0, 0, -1, 1};
-  for (i = 0; i < PLAYER_LIMIT; ++i) {
-    for (j = 0; j < BOMB_LIMIT; ++j) {
+  for (int i = 0; i < PLAYER_LIMIT; ++i) {
+    for (int j = 0; j < BOMB_LIMIT; ++j) {
       if (game->bombs.timer[i][j]) {
         --game->bombs.timer[i][j];
         if (!game->bombs.timer[i][j]) {
-	  ssize_t block[4] = {0};
-          for (k = 0; k < 4 * game->players.state[i].power; ++k) {
-	    if (block[k%4]) { continue; }
+          ssize_t block[4] = {0};
+          i16 x = game->bombs.x[i][j], y = game->bombs.y[i][j];
+          for (int k = 0; k < 4 * game->players.state[i].power; ++k) {
+            if (block[k%4]) { continue; }
             i16
               rx = game->bombs.x[i][j] + offset_x[k%4] * ((k / 4) + 1),
               ry = game->bombs.y[i][j] + offset_y[k%4] * ((k / 4) + 1);
             if (rx < game->config.map_x && rx >= 0
-	    &&  ry < game->config.map_y && ry >= 0)
-            {
-	      if (game->tiles.state[rx][ry]._ & PASSIBLE) {
-		game->tiles.state[rx][ry]._ = PASSIBLE_EXPLOSIVE_LETHAL;
-	      } else if (game->tiles.state[rx][ry]._ == IMPASSIBLE_BREAKABLE_WALL) {
-		game->tiles.state[rx][ry]._ = PASSIBLE_EXPLOSIVE_LETHAL;
-		if (!game->players.state[i].pierce) {
-		  block[k%4] = 1;
-		}
-	      } else {
-		block[k%4] = 1;
-	      }
-	    }
+            &&  ry < game->config.map_y && ry >= 0) {
+              printf("rx %d ry %d\n", rx, ry);
+              tile_data_t * tile = &game->tiles.state[rx][ry];
+              if (tile->passable) {
+                tile->explosive = 1;
+		tile->lethal = 1;
+              } else if (tile->breakable) {
+                tile->explosive = 1;
+		tile->lethal = 1;
+                if (!game->players.state[i].pierce) {
+                  block[k%4] = 1;
+                }
+              } else {
+                block[k%4] = 1;
+              }
+            }
           }
-          game->tiles.state[game->bombs.x[i][j]][game->bombs.y[i][j]]._ = PASSIBLE_EXPLOSIVE_LETHAL;
+          game->tiles.state[x][y].explosive = 1;
+	  game->tiles.state[x][y].lethal = 1;
           --game->players.state[i].bomb_count;
         }
       }
     }
   }
+}
+
+static void CheckWin(game_t * game) {
+  int sum = 0;
+  for (int i = 0; i < game->config.player_count; ++i) {
+    sum += game->players.state[i].alive;
+  }
+  if (sum <= 1) { MultiPlayer(game);}
+}
+
+static void UpdateTimeLimit(game_t * game) {
+  --game->time_limit;
+  if (!game->time_limit) { MultiPlayer(game); }
 }
